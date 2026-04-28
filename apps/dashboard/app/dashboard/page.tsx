@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   const first = scans[0];
   const previous = scans[scans.length - 2];
 
-  const chartData = scans.map((s) => ({
+  const chartData = scans.map((s: typeof scans[number]) => ({
     date: new Date(s.scanDate).toLocaleDateString(),
     bodyFat: s.bodyFatPercent,
     leanMass: s.leanMassKg,
