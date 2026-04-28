@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { parseDexaPdf } from "@/lib/parse-pdf";
 
 function toSafeNumber(value: unknown, fallback: number) {
   const num = Number(value);
@@ -20,21 +21,12 @@ export async function POST(req: Request) {
     const file = formData.get("file") as File | null;
 
     if (!memberId || !file) {
-      return NextResponse.json(
-        { message: "Missing memberId or file" },
-        { status: 400 },
-      );
+      return NextResponse.json({ message: "Missing memberId or file" }, { status: 400 });
     }
 
     const upload = await prisma.uploadedFile.create({
-      data: {
-        memberId,
-        fileName: file.name,
-        fileUrl: "",
-        parseStatus: "PENDING",
-      },
+      data: { memberId, fileName: file.name, fileUrl: "", parseStatus: "PENDING" },
     });
-
     uploadId = upload.id;
 
     const latestScan = await prisma.scan.findFirst({
@@ -42,7 +34,7 @@ export async function POST(req: Request) {
       orderBy: { scanDate: "desc" },
     });
 
-    const fallbackData = {
+    const fallback = {
       weightKg: latestScan?.weightKg ?? 70,
       bodyFatPercent: latestScan?.bodyFatPercent ?? 20,
       fatMassKg: latestScan?.fatMassKg ?? 14,
@@ -57,72 +49,34 @@ export async function POST(req: Request) {
       scanDate: new Date(),
     };
 
-    const forwardForm = new FormData();
-    forwardForm.append("memberId", memberId);
-    forwardForm.append("uploadId", upload.id);
-    forwardForm.append("file", file);
-
-    const apiBase = process.env.MEMBERGPT_API_URL;
-    let finalData = { ...fallbackData };
+    let finalData = { ...fallback };
     let parseStatus: "SUCCESS" | "FAILED" = "FAILED";
     let message = "Upload saved with fallback values.";
 
-    if (apiBase) {
-      try {
-        const normalizedApiBase = apiBase.replace(/\/+$/, "");
+    try {
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const parsed = await parseDexaPdf(bytes);
 
-        const apiRes = await fetch(`${normalizedApiBase}/parse/parse`, {
-          method: "POST",
-          body: forwardForm,
-        });
+      finalData = {
+        weightKg: toSafeNumber(parsed.weightKg, fallback.weightKg),
+        bodyFatPercent: toSafeNumber(parsed.bodyFatPercent, fallback.bodyFatPercent),
+        fatMassKg: toSafeNumber(parsed.fatMassKg, fallback.fatMassKg),
+        leanMassKg: toSafeNumber(parsed.leanMassKg, fallback.leanMassKg),
+        visceralFatMassKg: toOptionalNumber(parsed.visceralFatMassKg) ?? fallback.visceralFatMassKg,
+        boneMassKg: toOptionalNumber(parsed.boneMassKg) ?? fallback.boneMassKg,
+        bmrKcal: fallback.bmrKcal,
+        trunkFatKg: toOptionalNumber(parsed.trunkFatKg) ?? fallback.trunkFatKg,
+        trunkLeanMassKg: toOptionalNumber(parsed.trunkLeanMassKg) ?? fallback.trunkLeanMassKg,
+        androidFatPercent: toOptionalNumber(parsed.androidFatPercent) ?? fallback.androidFatPercent,
+        gynoidFatPercent: toOptionalNumber(parsed.gynoidFatPercent) ?? fallback.gynoidFatPercent,
+        scanDate: parsed.scanDate ?? new Date(),
+      };
 
-        if (apiRes.ok) {
-          const data = await apiRes.json().catch(() => null);
-          const parsed = data?.parsed ?? data ?? {};
-
-          finalData = {
-            weightKg: toSafeNumber(parsed.weightKg, fallbackData.weightKg),
-            bodyFatPercent: toSafeNumber(
-              parsed.bodyFatPercent,
-              fallbackData.bodyFatPercent,
-            ),
-            fatMassKg: toSafeNumber(parsed.fatMassKg, fallbackData.fatMassKg),
-            leanMassKg: toSafeNumber(parsed.leanMassKg, fallbackData.leanMassKg),
-            visceralFatMassKg:
-              toOptionalNumber(parsed.visceralFatMassKg) ??
-              fallbackData.visceralFatMassKg,
-            boneMassKg:
-              toOptionalNumber(parsed.boneMassKg) ?? fallbackData.boneMassKg,
-            bmrKcal:
-              toOptionalNumber(parsed.bmrKcal) ?? fallbackData.bmrKcal,
-            trunkFatKg:
-              toOptionalNumber(parsed.trunkFatKg) ?? fallbackData.trunkFatKg,
-            trunkLeanMassKg:
-              toOptionalNumber(parsed.trunkLeanMassKg) ??
-              fallbackData.trunkLeanMassKg,
-            androidFatPercent:
-              toOptionalNumber(parsed.androidFatPercent) ??
-              fallbackData.androidFatPercent,
-            gynoidFatPercent:
-              toOptionalNumber(parsed.gynoidFatPercent) ??
-              fallbackData.gynoidFatPercent,
-            scanDate: parsed.scanDate ? new Date(parsed.scanDate) : new Date(),
-          };
-
-          parseStatus = "SUCCESS";
-          message = "Upload parsed successfully";
-        } else {
-          const errorText = await apiRes.text().catch(() => "Parse failed");
-          message = `Upload saved with fallback values. Parser error: ${errorText}`;
-        }
-      } catch (error) {
-        console.error("UPLOAD_PARSE_REQUEST_ERROR", error);
-        message =
-          "Upload saved with fallback values. Parser service was unavailable.";
-      }
-    } else {
-      message =
-        "Upload saved with fallback values. MEMBERGPT_API_URL is not configured.";
+      parseStatus = "SUCCESS";
+      message = "Upload parsed successfully";
+    } catch (err) {
+      console.error("PARSE_ERROR", err);
+      message = "Upload saved with fallback values. PDF parsing failed.";
     }
 
     await prisma.scan.create({
@@ -134,10 +88,7 @@ export async function POST(req: Request) {
         leanMassKg: finalData.leanMassKg,
         visceralFatMassKg: finalData.visceralFatMassKg,
         boneMassKg: finalData.boneMassKg,
-        bmrKcal:
-          finalData.bmrKcal !== undefined
-            ? Math.round(finalData.bmrKcal)
-            : undefined,
+        bmrKcal: finalData.bmrKcal !== undefined ? Math.round(finalData.bmrKcal) : undefined,
         trunkFatKg: finalData.trunkFatKg,
         trunkLeanMassKg: finalData.trunkLeanMassKg,
         androidFatPercent: finalData.androidFatPercent,
@@ -151,26 +102,14 @@ export async function POST(req: Request) {
       data: { parseStatus },
     });
 
-    return NextResponse.json({
-      message,
-      usedFallback: parseStatus === "FAILED",
-      values: finalData,
-    });
+    return NextResponse.json({ message, usedFallback: parseStatus === "FAILED", values: finalData });
   } catch (error) {
     console.error("UPLOAD_ROUTE_ERROR", error);
-
     if (uploadId) {
       try {
-        await prisma.uploadedFile.update({
-          where: { id: uploadId },
-          data: { parseStatus: "FAILED" },
-        });
-      } catch { }
+        await prisma.uploadedFile.update({ where: { id: uploadId }, data: { parseStatus: "FAILED" } });
+      } catch {}
     }
-
-    return NextResponse.json(
-      { message: "Unexpected upload error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ message: "Unexpected upload error" }, { status: 500 });
   }
 }
