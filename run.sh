@@ -1,38 +1,61 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-cat <<EOF
-Kalos dev helper
+echo "Starting Kalos Full Stack App..."
 
-This repo runs 3 things:
-1) Postgres (Docker)
-2) MemberGPT API (FastAPI, port 8000)
-3) Dashboard (Next.js, port 3001)
+# -----------------------------
+# 1. Start Postgres (Docker)
+# -----------------------------
+echo "🐘 Starting PostgreSQL..."
+docker compose up -d
 
-Recommended workflow: open 3 terminals and run:
+# -----------------------------
+# 2. Start FastAPI backend
+# -----------------------------
+echo "🐍 Starting MemberGPT API..."
 
-Terminal 1 (DB)
-  cd "$ROOT_DIR"
-  docker compose up -d
+cd "$ROOT_DIR/apps/membergpt-api"
 
-Terminal 2 (API)
-  cd "$ROOT_DIR/apps/membergpt-api"
+# create venv if not exists
+if [ ! -d ".venv" ]; then
   python3 -m venv .venv
-  source .venv/bin/activate
-  pip install -r requirements.txt
-  uvicorn app.main:app --reload --port 8000
+fi
 
-Terminal 3 (Dashboard)
-  cd "$ROOT_DIR"
-  corepack enable
-  corepack prepare pnpm@10.19.0 --activate
-  pnpm install
-  pnpm --filter dashboard dev
+source .venv/bin/activate
+pip install -r requirements.txt
 
-Then open:
-  http://localhost:3001/login
-  http://localhost:3001/membergpt
-EOF
+uvicorn app.main:app --reload --port 8000 &
+API_PID=$!
+
+cd "$ROOT_DIR"
+
+# -----------------------------
+# 3. Start Next.js dashboard
+# -----------------------------
+echo "🟦 Starting Dashboard..."
+
+corepack enable
+corepack prepare pnpm@10.19.0 --activate
+pnpm install
+
+pnpm --filter dashboard dev &
+WEB_PID=$!
+
+# -----------------------------
+# Cleanup handler
+# -----------------------------
+trap "echo 'Stopping services...'; kill $API_PID $WEB_PID 2>/dev/null || true" EXIT
+
+# -----------------------------
+# Keep script alive
+# -----------------------------
+echo ""
+echo "   All services running:"
+echo "   → API: http://localhost:8000"
+echo "   → Dashboard: http://localhost:3001"
+echo ""
+echo "Press CTRL+C to stop all services"
+
+wait
