@@ -9,6 +9,20 @@ const nextConfig = {
         }
         return config;
     },
+    async rewrites() {
+        const membergptWebUrl = process.env.MEMBERGPT_WEB_URL;
+        if (!membergptWebUrl) return [];
+        return [
+            {
+                source: "/chat",
+                destination: `${membergptWebUrl}/chat`,
+            },
+            {
+                source: "/chat/:path*",
+                destination: `${membergptWebUrl}/chat/:path*`,
+            },
+        ];
+    },
 };
 
 export default nextConfig;

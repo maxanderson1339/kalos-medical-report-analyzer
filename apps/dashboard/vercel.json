@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm turbo build --filter=dashboard",
+  "installCommand": "cd ../.. && pnpm install && pnpm --filter @repo/ui run build:styles && pnpm --filter @repo/ui run build:components",
+  "buildCommand": "pnpm run build",
   "outputDirectory": ".next"
 }
