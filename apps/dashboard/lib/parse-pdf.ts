@@ -123,9 +123,9 @@ export interface ParsedScan {
 export async function parseDexaPdf(fileBytes: Buffer): Promise<ParsedScan> {
   let fullText = "";
   try {
-    // dynamic require avoids edge-runtime issues with pdf-parse
+    // Use the internal lib path to skip test-fixture loading that crashes in serverless
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require("pdf-parse");
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js");
     const data = await pdfParse(fileBytes);
     fullText = data.text ?? "";
   } catch {
