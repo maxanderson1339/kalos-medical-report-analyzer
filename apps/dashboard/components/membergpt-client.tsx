@@ -89,6 +89,7 @@ export function MemberGPTClient() {
         <button
           onClick={ask}
           disabled={loading}
+          suppressHydrationWarning
           style={{ padding: "8px 16px", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "4px", cursor: loading ? "not-allowed" : "pointer", fontSize: "14px", opacity: loading ? 0.6 : 1 }}
         >
           Send
@@ -107,6 +108,7 @@ export function MemberGPTClient() {
             <button
               key={prompt}
               onClick={() => setQuestion(prompt)}
+              suppressHydrationWarning
               style={{ padding: "4px 10px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: "white", cursor: "pointer" }}
             >
               {prompt}

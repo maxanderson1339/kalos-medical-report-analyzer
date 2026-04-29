@@ -45,7 +45,7 @@ export default function ChatPage() {
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
         />
-        <button onClick={ask} className="rounded-md bg-black px-4 py-2 text-white">Send</button>
+        <button onClick={ask} suppressHydrationWarning className="rounded-md bg-black px-4 py-2 text-white">Send</button>
       </div>
     </main>
   );

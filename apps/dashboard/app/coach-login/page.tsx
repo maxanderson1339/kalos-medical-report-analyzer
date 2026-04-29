@@ -41,6 +41,7 @@ export default function CoachLoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="coach@kalos.com"
+              suppressHydrationWarning
               style={{ width: "100%", padding: "10px 12px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
             />
           </div>
@@ -52,6 +53,7 @@ export default function CoachLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
+              suppressHydrationWarning
               style={{ width: "100%", padding: "10px 12px", border: "1px solid #ccc", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
             />
           </div>
@@ -62,6 +64,7 @@ export default function CoachLoginPage() {
 
           <button
             type="submit"
+            suppressHydrationWarning
             style={{ width: "100%", padding: "10px", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "4px", fontSize: "15px", cursor: "pointer" }}
           >
             Sign in as Coach
