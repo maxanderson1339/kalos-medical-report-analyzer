@@ -1,44 +1,36 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$ROOT_DIR/apps/dashboard/.env.local"
 
-echo "Starting Kalos Full Stack App..."
-
-echo "🐘 Starting PostgreSQL..."
-docker compose up -d
-
-echo "🐍 Starting MemberGPT API..."
-
-cd "$ROOT_DIR/apps/membergpt-api"
-
-if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
+if [ ! -f "$ENV_FILE" ]; then
+  cat > "$ENV_FILE" <<'EOF'
+DATABASE_URL=postgresql://postgres:wRwtKYXGHvwjiWMUAapoEpehmakidwXi@switchback.proxy.rlwy.net:32414/railway
+NEXTAUTH_SECRET=Ui2qu7Sl3Ghu4INtKDV0cvoItzFfOHa91ATSHL+eL/M=
+NEXTAUTH_URL=http://localhost:3001
+EOF
+  echo ".env.local created"
 fi
-
-source .venv/bin/activate
-pip install -r requirements.txt
-
-uvicorn app.main:app --reload --port 8000 &
-API_PID=$!
 
 cd "$ROOT_DIR"
 
-echo "🟦 Starting Dashboard..."
-
-corepack enable
-corepack prepare pnpm@10.19.0 --activate
+echo "Installing dependencies..."
 pnpm install
 
-pnpm --filter dashboard dev &
-WEB_PID=$!
+echo "Building shared UI..."
+pnpm --filter @repo/ui run build:styles
+pnpm --filter @repo/ui run build:components
 
-trap "echo 'Stopping services...'; kill $API_PID $WEB_PID 2>/dev/null || true" EXIT
+echo "Generating Prisma client..."
+pnpm --filter dashboard exec prisma generate --schema ../../packages/db/prisma/schema.prisma
 
 echo ""
-echo "   All services running:"
-echo "   → API: http://localhost:8000"
-echo "   → Dashboard: http://localhost:3001"
+echo "Starting Kalos..."
+echo "  Dashboard: http://localhost:3001"
+echo "  MemberGPT: http://localhost:3001/chat"
 echo ""
-echo "Press CTRL+C to stop all services"
+echo "Press CTRL+C to stop"
+echo ""
 
-wait
+pnpm --filter dashboard dev
