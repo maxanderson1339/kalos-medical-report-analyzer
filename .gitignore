@@ -30,6 +30,9 @@ apps/dashboard/public/uploads/
 # Prisma generated client
 packages/db/generated/
 
+# Turborepo cache
+.turbo/
+
 # OS/editor
 .DS_Store
 .vscode/
